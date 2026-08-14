@@ -1,0 +1,25 @@
+{
+  "name": "react-nextjs-microfrontend-starter",
+  "private": true,
+  "version": "0.1.0",
+  "description": "React & NextJS Enterprise Architecture eğitimi (Neominal Akademi) — Modül 5: Webpack Module Federation ile gerçek bir Host/Remote micro-frontend monorepo iskeleti.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:shell": "npm run dev --workspace=shell",
+    "dev:checkout": "npm run dev --workspace=checkout-app",
+    "dev:profile": "npm run dev --workspace=profile-app",
+    "dev": "concurrently -k -n shell,checkout,profile -c cyan,yellow,green \"npm:dev:shell\" \"npm:dev:checkout\" \"npm:dev:profile\"",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "webpack": "5.90.0"
+  },
+  "overrides": {
+    "webpack": "5.90.0",
+    "enhanced-resolve": "5.17.1"
+  }
+}
