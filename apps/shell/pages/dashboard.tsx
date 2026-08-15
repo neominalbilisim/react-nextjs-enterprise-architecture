@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { ReactElement } from "react";
+import Link from "next/link";
 import { useDashboardStore } from "@/store/useDashboardStore";
 import RemoteWidgets from "@/components/RemoteWidgets";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -53,7 +54,32 @@ const DashboardPage: NextPageWithLayout = function DashboardPage() {
 
       <section>
         <h2 className="text-xl font-bold mb-3">
-          Modül 5 · Remote Micro-Frontend Widget'ları
+          Modül 6 · Checkout Akışı
+        </h2>
+        <Link href="/checkout/step1" className="block mb-6">
+          <div className="rounded-xl bg-gradient-to-r from-purple-500/10 to-cyan/10 border-2 border-purple-500/30 p-6 hover:border-purple-500/60 transition-all hover:scale-[1.02] cursor-pointer">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-3xl">🛒</span>
+              <div>
+                <h3 className="text-purple-400 font-bold text-lg">Checkout Sayfasına Git</h3>
+                <p className="text-muted text-sm">
+                  Stepli checkout akışı (Sepet → Ödeme → Onay)
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded">React Hook Form</span>
+              <span className="px-2 py-1 bg-cyan/20 text-cyan rounded">Zod Validation</span>
+              <span className="px-2 py-1 bg-yellow/20 text-yellow rounded">Zustand</span>
+              <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded">Module Federation</span>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      <section>
+        <h2 className="text-xl font-bold mb-3">
+          Modül 5 & 6 · Remote Widget'lar & Component Örnekleri
         </h2>
         <RemoteWidgets />
       </section>
