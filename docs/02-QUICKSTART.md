@@ -160,3 +160,4 @@ Port çakışması için: `docs/05-TROUBLESHOOTING.md`
 - `docs/01-NEXTJS-PAGES-ROUTER-GUIDE.md` — Pages Router
 - `docs/03-MODULE-FEDERATION-GUIDE.md` — Shared Routes
 - `docs/04-Summary.md` — mevcut dosya ve özellik özeti
+- `docs/06-NPM-WORKSPACES.md` — npm workspaces, concurrently, `npm run build`

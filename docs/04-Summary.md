@@ -102,3 +102,4 @@ apps/shell/
 - `docs/02-QUICKSTART.md` — çalıştırma ve test
 - `docs/03-MODULE-FEDERATION-GUIDE.md` — Shared Routes
 - `docs/05-TROUBLESHOOTING.md` — port / process sorunları
+- `docs/06-NPM-WORKSPACES.md` — npm workspaces, concurrently, build

@@ -43,6 +43,7 @@ docs/
   03-MODULE-FEDERATION-GUIDE.md
   04-Summary.md
   05-TROUBLESHOOTING.md
+  06-NPM-WORKSPACES.md
 ```
 
 ## Kurulum ve Çalıştırma
@@ -73,7 +74,8 @@ Adresler:
 - `/checkout/step1` — sepet → ödeme → onay (Shared Routes)
 - http://localhost:3001/checkout/step1 — aynı akış, standalone
 
-Detaylı adımlar: `docs/02-QUICKSTART.md`
+Detaylı adımlar: `docs/02-QUICKSTART.md`  
+Monorepo / `npm run dev` / `npm run build`: `docs/06-NPM-WORKSPACES.md`
 
 ## Modüllere Göre Dosya Haritası
 
