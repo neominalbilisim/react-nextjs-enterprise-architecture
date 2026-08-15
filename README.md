@@ -2,295 +2,165 @@
 
 **Neominal Akademi — React & NextJS Enterprise Architecture** eğitiminin
 tüm modüllerini, gerçek bir **Host / Remote micro-frontend monorepo**
-yapısında barındıran başlangıç projesidir (Modül 5: Webpack Module
-Federation).
+yapısında barındıran başlangıç projesidir.
 
 ## Klasör Yapısı
 
 ```
 apps/
-  shell/            # HOST — Pages Router, port 3000
+  shell/                 # HOST — Pages Router, port 3000
     pages/
       checkout/
-        index.tsx               # /checkout (redirect to step1)
-        step1.tsx               # Shared Routes: Sepet sayfası
-        step2.tsx               # Shared Routes: Ödeme sayfası
-        confirmation.tsx        # Shared Routes: Onay sayfası
-      dashboard.tsx             # Ana dashboard
+        index.tsx        # /checkout → /checkout/step1
+        step1.tsx        # Shared Routes: sepet
+        step2.tsx        # Shared Routes: ödeme
+        confirmation.tsx # Shared Routes: onay
+      dashboard.tsx
+      login.tsx
+      form-demo.tsx
+      api/dashboard.ts
     components/
-      RemoteWidgets.tsx         # Widget örnekleri
-      
-  checkout-app/      # REMOTE — Pages Router, port 3001
-    components/
-      CheckoutWidget.tsx        # METHOD 1: Basit widget
-      CheckoutStep1.tsx         # METHOD 1: Individual step
-      CheckoutStep2.tsx         # METHOD 1: Individual step
-      CheckoutConfirmation.tsx  # METHOD 1: Individual step
-      CheckoutFlow.tsx          # METHOD 2: Complete flow
-    next.config.js              # Expose: widget + steps + flow
-    
-  profile-app/        # REMOTE — Pages Router, port 3002
-    
-packages/
-  shared-ui/         # Build-time paylaşılan ortak component'ler (Badge vb.)
-  
-package.json          # npm workspaces kök yapılandırması
-```
+      RemoteWidgets.tsx
+      CheckoutErrorBoundary.tsx
+    middleware.ts
+    types/federation.d.ts
 
-Bu, eğitimin Modül 5 & 6 slaytlarındaki **Host (shell-app) → Remote
-(checkout-app, profile-app)** ilişkisinin ve **iki farklı routing stratejisinin**
-birebir karşılığıdır.
+  checkout-app/          # REMOTE — Pages Router, port 3001
+    pages/checkout/      # step1, step2, confirmation (standalone + federated)
+    components/          # CheckoutWidget, CheckoutStep1/2, CheckoutConfirmation
+    store/useCheckoutStore.ts
+    next.config.js       # exposes
+
+  profile-app/           # REMOTE — Pages Router, port 3002
+    components/ProfileWidget.tsx
+
+packages/
+  shared-ui/             # Build-time paylaşılan component'ler (Badge)
+
+docs/
+  01-NEXTJS-PAGES-ROUTER-GUIDE.md
+  02-QUICKSTART.md
+  03-MODULE-FEDERATION-GUIDE.md
+  04-Summary.md
+  05-TROUBLESHOOTING.md
+```
 
 ## Kurulum ve Çalıştırma
 
 ```bash
-npm install          # kök dizinde — tüm workspace'leri kurar
-npm run dev           # shell + checkout-app + profile-app'i AYNI ANDA başlatır
+npm install
+npm run dev           # shell + checkout-app + profile-app
 ```
 
-Ayrı ayrı çalıştırmak isterseniz:
+Ayrı ayrı:
 
 ```bash
 npm run dev:checkout   # http://localhost:3001
 npm run dev:profile    # http://localhost:3002
-npm run dev:shell      # http://localhost:3000  (Remote'lar çalışıyor olmalı)
+npm run dev:shell      # http://localhost:3000  (remote'lar çalışıyor olmalı)
 ```
 
-`shell` uygulamasında `/dashboard` sayfasını açtığınızda, **checkout-app**
-ve **profile-app**'ten runtime'da yüklenen widget'ları göreceksiniz.
-
 `/dashboard` middleware ile korunur: `session_token` cookie'si yoksa
-istek `/login`'e yönlendirilir. Yerel deneme için tarayıcıda bu cookie'yi
-set edin.
+istek `/login`'e yönlendirilir. Yerel deneme:
+
+```javascript
+document.cookie = "session_token=test_token; path=/";
+```
+
+Adresler:
+
+- `/dashboard` — Zustand, BFF API, remote widget'lar
+- `/checkout/step1` — sepet → ödeme → onay (Shared Routes)
+- http://localhost:3001/checkout/step1 — aynı akış, standalone
+
+Detaylı adımlar: `docs/02-QUICKSTART.md`
 
 ## Modüllere Göre Dosya Haritası
 
 ### Modül 1 — React Fundamentals
+
 - `apps/shell/pages/index.tsx`, `apps/checkout-app/components/CheckoutWidget.tsx`
   (useState, JSX, props)
 
 ### Modül 2 — Advanced Hooks, Memoization & Form Management
+
 - `apps/shell/components/MemoizedList.tsx` — memo/useMemo/useCallback
 - `apps/shell/hooks/useDebouncedValue.ts` — custom hook
 - `apps/shell/components/ContactForm.tsx` + `lib/schemas.ts` — RHF + Zod
-- `apps/shell/pages/form-demo.tsx` — form örneğinin sayfası
+- `apps/shell/pages/form-demo.tsx`
 
 ### Modül 3 — State Yönetimi (Context API & Zustand)
-- `apps/shell/store/useDashboardStore.ts` — selector mimarisi + async action
+
+- `apps/shell/store/useDashboardStore.ts` — selector + async action
+- `apps/checkout-app/store/useCheckoutStore.ts` — checkout sepet/ödeme state
 
 ### Modül 4 — Modern Next.js Pages Router Mimarisi
-- `apps/shell/middleware.ts` — auth kontrolü (`/dashboard` → `/login`)
+
+- `apps/shell/middleware.ts` — auth (`/dashboard` → `/login`)
 - `apps/shell/pages/_app.tsx` — `getLayout` ile nested layout
-- `apps/shell/components/DashboardLayout.tsx` — dashboard iskeleti
-- `apps/shell/components/DashboardErrorBoundary.tsx` — error boundary
+- `apps/shell/components/DashboardLayout.tsx`
+- `apps/shell/components/DashboardErrorBoundary.tsx`
 - `apps/shell/pages/api/dashboard.ts` — BFF API route
 
-### Modül 5 — Webpack Module Federation (Micro-Frontend) ⭐
-- `apps/shell/next.config.js` — **Host**: `remotes` tanımı
+### Modül 5 — Webpack Module Federation
+
+- `apps/shell/next.config.js` — Host `remotes`
   (`checkout@http://localhost:3001/...`, `profile@http://localhost:3002/...`)
-- `apps/checkout-app/next.config.js` — **Remote**: `exposes: { './CheckoutWidget': ... }`
-- `apps/profile-app/next.config.js` — **Remote**: `exposes: { './ProfileWidget': ... }`
-- `apps/shell/components/RemoteWidgets.tsx` — Host'un `next/dynamic` ile
-  Remote'ları `ssr:false` olarak tüketmesi
-- **`shared` Yapılandırması** — npm paketlerinin Host ve Remote'lar arasında
-  tek kopya olarak paylaşılması (bundle size optimizasyonu):
-  - Bu projede `shared: {}` (boş): React singleton paylaşımını `@module-federation/nextjs-mf`
-    plugin'i otomatik yönetir. Elle `react` paylaşmak SSR'de çift React kopyası üretir.
-  - Başka paketleri paylaşmak için örnek:
-    ```js
-    shared: {
-      zustand: { singleton: true, requiredVersion: "^4.5.0" }
-    }
-    ```
-  - **Bundle size etkisi**: Zustand (~20 KB) her remote'da ayrı bundle'lanmak
-    yerine Host'tan paylaşılır → toplam 20 KB (2 kopya yerine 1 kopya).
-  - **Önemli**: `shared`, **paket kodu**'nu paylaşır, uygulama **state'ini değil**.
-    Her app kendi `create()` ile kendi Zustand store'unu oluşturur; sadece
-    zustand library'sinin kendisi (create, useStore fonksiyonları) paylaşılır.
+- `apps/checkout-app/next.config.js` — Remote `exposes`
+- `apps/profile-app/next.config.js` — `./ProfileWidget`
+- `apps/shell/components/RemoteWidgets.tsx` — `next/dynamic` + `ssr: false`
+- **`shared`:** Bu projede shell `shared: {}` bırakır. React singleton
+  paylaşımını `@module-federation/nextjs-mf` otomatik yönetir. Elle `react`
+  paylaşmak SSR'de çift React kopyası üretir.
+  Checkout-app Zustand'ı paylaşır:
+
+  ```js
+  shared: {
+    zustand: { singleton: true, requiredVersion: "^4.5.0" }
+  }
+  ```
+
+  `shared` paket kodunu paylaşır, uygulama state'ini değil. Her app kendi
+  `create()` ile kendi store'unu oluşturur.
 - `apps/*/pages/_document.tsx` — `getInitialProps` ile Module Federation
-  server runtime'ı (Next'in sayfayı statik sanmasını önler)
+  server runtime
 - `apps/checkout-app/pages/index.tsx`, `apps/profile-app/pages/index.tsx` —
-  her Remote'un **bağımsız** (Host olmadan) da çalışabildiğini gösterir
+  remote'ların Host olmadan da çalışması
 
-### Modül 6 — Micro-Frontend Routing Stratejileri 🚀
+### Modül 6 — Shared Routes (checkout akışı)
 
-Module Federation'da **iki farklı routing yaklaşımı** bulunur. Bu modül, her iki yöntemi
-de production-ready örneklerle gösterir.
+Checkout route'ları **checkout-app** içinde tanımlanır. Shell aynı
+path'lerde remote page'leri import eder.
 
-#### 🎯 İki Yöntem: METHOD 1 vs METHOD 2
-
-| Özellik | METHOD 1: Component Expose | METHOD 2: Flow Expose |
-|---------|---------------------------|----------------------|
-| **Routing Kontrolü** | Host (shell) kontrolünde | Remote kontrolünde |
-| **URL Yönetimi** | Shell router yönetir | Internal state (URL değişmez) |
-| **Browser Back/Forward** | ✅ Çalışır | ❌ Çalışmaz (internal navigation) |
-| **SEO** | ✅ Her adım ayrı URL olabilir | ⚠️ Tek URL (flow içinde) |
-| **Kullanım Alanı** | Basit widget'lar, liste sayfaları | Multi-step flow'lar, wizard'lar |
-| **Team Autonomy** | ⚠️ Shell'e bağımlı | ✅ Tam otonom |
-| **Expose Gereksinimi** | Her component ayrı expose | Tek flow expose yeterli |
-| **Entegrasyon** | Fine-grained control | Plug-and-play |
-
-#### 📂 Dosya Haritası
-
-**checkout-app (Remote):**
-- `components/CheckoutStep1.tsx` — Sepet adımı (METHOD 1)
-- `components/CheckoutStep2.tsx` — Ödeme adımı (METHOD 1)
-- `components/CheckoutConfirmation.tsx` — Onay sayfası (METHOD 1)
-- `components/CheckoutFlow.tsx` — Tüm flow'u yöneten component (METHOD 2)
-- `next.config.js` — Hem individual component'leri hem flow'u expose eder
-
-**shell (Host):**
-- `pages/checkout/step1.tsx` — Shared Routes: checkout-app'in step1 page'ini import eder
-- `pages/checkout/step2.tsx` — Shared Routes: checkout-app'in step2 page'ini import eder
-- `pages/checkout/confirmation.tsx` — Shared Routes: checkout-app'in confirmation page'ini import eder
-- `components/RemoteWidgets.tsx` — Widget örnekleri
-
-#### 💡 METHOD 1: Component Expose
-
-**Ne zaman kullanılır?**
-- Dashboard widget'ları
-- Liste/grid sayfaları
-- Shared UI components (Button, Modal, vb.)
-- SEO önemli sayfalar
-- Host'un tam kontrol istendiği yerler
-
-**Avantajları:**
-- ✅ Shell routing'i kontrol eder (URL management)
-- ✅ Browser back/forward çalışır
-- ✅ SEO friendly (her adım ayrı URL)
-- ✅ Fine-grained control
-- ✅ Modüler yapı (her component bağımsız)
-
-**Dezavantajları:**
-- ❌ Her component için expose tanımı gerekli
-- ❌ Shell ile Remote arasında daha fazla koordinasyon
-- ❌ Remote'un internal flow'u shell'e bağımlı
-
-**Örnek Kullanım:**
-```typescript
-// apps/checkout-app/next.config.js
-exposes: {
-  "./CheckoutStep1": "./components/CheckoutStep1.tsx",
-  "./CheckoutStep2": "./components/CheckoutStep2.tsx",
-  "./CheckoutConfirmation": "./components/CheckoutConfirmation.tsx",
-}
-
-// apps/shell/pages/checkout-step1.tsx
-const CheckoutStep1 = dynamic(() => import("checkout/CheckoutStep1"), {
-  ssr: false
-});
-
-export default function Step1Page() {
-  const router = useRouter();
-  
-  const handleNext = (data) => {
-    // Shell routing'i yönetir
-    router.push('/checkout-step2');
-  };
-  
-  return <CheckoutStep1 onNext={handleNext} />;
-}
-```
-
-**Gerçek Dünya Örnekleri:**
-- **Netflix**: Ana sayfadaki recommendation widget'ları
-- **Amazon**: Product card'lar, filter component'leri
-- **Spotify**: PlayButton, NowPlaying widget'ı
-
-#### 🔄 METHOD 2: Flow Expose
-
-**Ne zaman kullanılır?**
-- Multi-step wizard'lar (checkout, onboarding, vb.)
-- Kompleks form flow'ları
-- Oyun, quiz gibi interactive uygulamalar
-- Team'in tam otonom çalışması gereken yerler
-- Internal state yönetimi kritik olan işlemler
-
-**Avantajları:**
-- ✅ Remote tam otonom (kendi routing'ini yönetir)
-- ✅ Tek expose tanımı yeterli
-- ✅ Kompleks flow'lar için ideal
-- ✅ Plug-and-play entegrasyon
-- ✅ Team bağımsızlığı maksimum
-
-**Dezavantajları:**
-- ❌ URL değişmez (browser'da her zaman aynı URL)
-- ❌ Browser back/forward çalışmaz (internal state)
-- ❌ SEO için uygun değil
-- ❌ Shell'in flow içeriğinden haberi yok
-
-**Örnek Kullanım:**
-```typescript
-// apps/checkout-app/next.config.js
-exposes: {
-  "./CheckoutFlow": "./components/CheckoutFlow.tsx",
-}
-
-// apps/checkout-app/components/CheckoutFlow.tsx
-export default function CheckoutFlow() {
-  const [step, setStep] = useState('cart');
-  
-  // Remote kendi routing'ini yönetir
-  if (step === 'cart') return <CheckoutStep1 onNext={() => setStep('payment')} />;
-  if (step === 'payment') return <CheckoutStep2 onNext={() => setStep('confirm')} />;
-  return <CheckoutConfirmation />;
-}
-
-// apps/shell/pages/checkout/step1.tsx
-const CheckoutStep1Page = dynamic(
-  () => import("checkout/pages/CheckoutStep1Page"),
-  { ssr: false }
-);
-
-export default CheckoutStep1Page;
-```
-
-**Gerçek Dünya Örnekleri:**
-- **Zalando**: Multi-step checkout flow
-- **Airbnb**: Booking wizard
-- **Stripe**: Payment setup flow
-
-#### 🏆 Best Practice: Hybrid Yaklaşım
-
-**Production'da en yaygın kullanım her ikisini de kullanmaktır:**
+| Shell | Checkout-app | Sayfa |
+|-------|--------------|--------|
+| `/checkout` | — | `step1`'e yönlendirme |
+| `/checkout/step1` | `/checkout/step1` | Sepet |
+| `/checkout/step2` | `/checkout/step2` | Ödeme (RHF + Zod) |
+| `/checkout/confirmation` | `/checkout/confirmation` | Onay |
 
 ```javascript
 // checkout-app/next.config.js
 exposes: {
-  // METHOD 1: Basit widget'lar
-  "./CheckoutWidget": "./components/CheckoutWidget.tsx",
-  "./OrderHistory": "./components/OrderHistory.tsx",
-  
-  // METHOD 2: Kompleks flow'lar
-  "./CheckoutFlow": "./components/CheckoutFlow.tsx",
-  "./OnboardingWizard": "./components/OnboardingWizard.tsx",
+  "./pages/CheckoutStep1Page": "./pages/checkout/step1.tsx",
+  "./pages/CheckoutStep2Page": "./pages/checkout/step2.tsx",
+  "./pages/CheckoutConfirmationPage": "./pages/checkout/confirmation.tsx",
 }
 ```
 
-**Karar Verme Rehberi:**
-1. **Basit, stateless, tek iş yapan** → METHOD 1
-2. **Kompleks, stateful, multi-step** → METHOD 2
-3. **SEO kritik** → METHOD 1
-4. **Team autonomy kritik** → METHOD 2
-5. **URL kontrolü gerekli** → METHOD 1
-6. **Internal flow kompleks** → METHOD 2
-
-#### 🔍 Canlı Demo
-
-```bash
-npm run dev
+```typescript
+// shell/pages/checkout/step1.tsx
+const CheckoutStep1Page = dynamic(
+  () => import("checkout/pages/CheckoutStep1Page"),
+  { ssr: false }
+);
 ```
 
-Tarayıcıda:
-- `/dashboard` — Ana dashboard ve widget örnekleri
-- `/checkout/step1` — Checkout akışı (Sepet → Ödeme → Onay)
-- `/checkout/step2` — Ödeme sayfası (React Hook Form + Zod)
-- `/checkout/confirmation` — Sipariş onay sayfası
+Dashboard'da ayrıca `CheckoutWidget` ve `CheckoutStep1` component olarak
+yüklenir (`RemoteWidgets.tsx`). Remote yükleme hataları
+`CheckoutErrorBoundary` ile yakalanır.
 
-Cookie ekleyin (console'da):
-```javascript
-document.cookie = "session_token=test_token; path=/";
-```
+Mimari detay: `docs/03-MODULE-FEDERATION-GUIDE.md`
 
 ## Neden Tüm Uygulamalar Pages Router Kullanıyor?
 
@@ -308,13 +178,12 @@ Kök `package.json` içindeki `overrides` bu sürümleri kilitler.
 
 ## Production'a Taşırken
 
-- Her app'i **ayrı** bir hosting'e (Vercel, kendi sunucunuz vb.) deploy edin.
+- Her app'i **ayrı** bir hosting'e deploy edin.
 - Host'taki `next.config.js` içinde `NEXT_PUBLIC_CHECKOUT_URL` ve
   `NEXT_PUBLIC_PROFILE_URL` ortam değişkenlerini production Remote
   URL'lerine göre ayarlayın.
 - React/react-dom versiyonlarını tüm apps arasında senkron tutun —
-  versiyon uyuşmazlığı runtime hatasına yol açabilir
-  (bkz. eğitim Modül 5, "Enterprise Dikkat Noktası").
+  versiyon uyuşmazlığı runtime hatasına yol açabilir.
 
 ## Kullanılan Teknolojiler
 
@@ -326,6 +195,6 @@ Kök `package.json` içindeki `overrides` bu sürümleri kilitler.
 | UI | React 18 |
 | State Management | Zustand |
 | Form & Validation | React Hook Form + Zod |
-| Styling | Tailwind CSS (shell) / inline styles (Remote'lar — framework-agnostic örnek) |
+| Styling | Tailwind CSS (shell) / inline styles (Remote'lar) |
 | Monorepo | npm workspaces |
 | Dil | TypeScript |
