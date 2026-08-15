@@ -151,16 +151,8 @@ export default CheckoutStep1Page;
 
 ### 1. DRY (Don't Repeat Yourself)
 
-❌ **Eski Yöntem (Tekrar):**
-```typescript
-// Shell'de ayrı logic
-const handleNext = () => router.push("/step2");
 
-// Checkout-app'te ayrı logic (farklı!)
-const handleNext = () => console.log("next");
-```
-
-✅ **Yeni Yöntem (Shared):**
+✅ **(Shared Routes):**
 ```typescript
 // Checkout-app'te tanımla
 const handleNext = () => router.push("/checkout/step2");
@@ -296,26 +288,6 @@ http://localhost:3000/checkout/confirmation
 ---
 
 ## 🆚 Comparison: Old vs New
-
-### Old Method (checkout-method1.tsx)
-
-**Shell:**
-```typescript
-// Shell manages everything
-const [step, setStep] = useState("step1");
-
-if (step === "step1") {
-  return <CheckoutStep1 onNext={() => setStep("step2")} />;
-}
-```
-
-**Problems:**
-- ❌ Routing logic in shell
-- ❌ State management in shell
-- ❌ checkout-app components don't have routing
-- ❌ Can't test checkout-app standalone with routing
-
-### New Method (Shared Routes) ⭐
 
 **Checkout-App:**
 ```typescript
@@ -532,7 +504,7 @@ const total = useCheckoutStore(selectTotal); // number
 
 ## 🚀 Migration Guide
 
-### From Old to New
+### Code Flow
 
 1. **Create route pages in checkout-app:**
    ```bash
@@ -617,7 +589,6 @@ const total = useCheckoutStore(selectTotal); // number
 
 ## 🎓 Summary
 
-**Problem:** Shell ve checkout-app routing logic'i ayrıydı, state management tutarlı değildi.
 
 **Solution:** 
 1. Checkout-app route'ları tanımlar, shell aynı route'ları kullanır
