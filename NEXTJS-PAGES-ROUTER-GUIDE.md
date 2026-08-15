@@ -12,10 +12,10 @@ Bu döküman, Next.js Pages Router'ın tüm özelliklerini detaylı olarak açı
 4. [Data Fetching Methods](#data-fetching-methods)
 5. [Routing](#routing)
 6. [Layout Patterns](#layout-patterns)
-7. [Dynamic Imports](#dynamic-imports)
+7. [Dynamic Imports](#dynamic-imports) — `ssr: false` izolasyon + eager shared
 8. [Performance & Optimization](#performance--optimization)
 9. [Module Federation](#module-federation)
-10. [Error Handling](#error-handling)
+10. [Error Handling](#error-handling) — `_error.tsx` vs Error Boundary
 11. [Best Practices](#best-practices)
 
 ---
@@ -252,6 +252,28 @@ export default Error;
 |------|----------|
 | `404.tsx` | Sadece 404 hataları |
 | `_error.tsx` | Tüm hatalar (404, 500, vb.) |
+
+**Ne zaman devreye girer?**
+
+`_error.tsx` Next.js'in **sayfa** hata sayfasıdır. Şunlarda çalışır:
+
+- Host (shell) sayfası **SSR sırasında** patlarsa
+- `getServerSideProps` / `getInitialProps` throw ederse
+- Next.js router'ın yakaladığı **sayfa seviyesi** hatalar
+
+Yani Next.js "bu sayfa render edilemedi" dediğinde `_error.tsx` gösterilir. Production'da görünür; development'ta genelde overlay çıkar.
+
+**Ne zaman devreye girmez? (Module Federation)**
+
+Bu projedeki federated import'lar `dynamic(..., { ssr: false })` ile **client-only** yüklenir. Remote hiç server'da çalışmaz. Checkout kapalıysa hata **client'ta, async import'ta** çıkar.
+
+Next.js bunu "sayfa patladı" sanmaz; shell sayfasını zaten 200 ile basmıştır (loading UI). `_error.tsx` bu senaryoyu **kapsamaz**.
+
+Remote SSR açılsaydı (`ssr: true`) ve component **server render sırasında** throw etseydi, o zaman `_error.tsx` tetiklenebilirdi — ama host da remote down olunca 500 olurdu. Bu yüzden federated import'lar bilinçli olarak client-only.
+
+`_error.tsx` hâlâ shell için işe yarar: gerçek SSR hatası, sayfa seviyesi bug. Federated remote için **Error Boundary** gerekir.
+
+**App Router karşılığı:** `error.tsx` bir Error Boundary'dir; Pages Router `_error.tsx` değildir. Pages Router'da remote hataları için dosya kuralı yoktur — class component yazılır (`CheckoutErrorBoundary`).
 
 ---
 
@@ -724,10 +746,54 @@ export default function Dashboard() {
 }
 ```
 
-**ssr: false neden?**
-- Module Federation server'da çalışmaz (runtime dependency)
-- Remote app'in server'da olmaması gerekebilir
-- Client-only rendering garantisi
+**Bu uygulamada neden `dynamic` + `ssr: false`?**
+
+İki ayrı sebep var; ikisi de kasıtlı.
+
+#### 1) Host, remote down olunca düşmesin
+
+`ssr: false` ile shell sayfası remote'a bakmadan HTML üretir. Checkout (port 3001) kapalı olsa bile `/checkout/step1` 200 döner; hata sadece checkout parçasında (Error Boundary) kalır.
+
+`ssr: true` olsaydı Node, SSR sırasında `import("checkout/...")` yapardı. Remote down / yavaş / timeout → **host sayfası 500**. Micro-frontend'in amacı (remote düşse host ayakta kalsın) bozulur.
+
+`nextjs-mf` SSR'ye hazırdır (`_document` + `ssr/remoteEntry.js`). `ssr: false` "MF SSR yapamaz" demek değil; **izolasyon** için o yolu kullanmıyoruz.
+
+#### 2) Eager shared hatasını önlemek
+
+```
+Shared module is not available for eager consumption
+```
+
+`shared` (React, Zustand) host ve remote arasında **tek kopya**dır. Webpack varsayılanı: paylaşılan paket **async** çözülür — önce `remoteEntry.js` (container) init olur, sonra React/Zustand hazır sayılır.
+
+| | Anlamı |
+|---|---|
+| **Eager** | Uygulama ayağa kalkarken paket **hemen, senkron** istenir |
+| **Async** | Önce `remoteEntry` yüklenir, **sonra** paylaşılan paket çözülür |
+
+Statik import (`import X from "checkout/X"`) container hazır olmadan shared'ı **eager** ister → bu hata.
+
+`dynamic` + `ssr: false` federated import'u (ve onun shared bağımlılıklarını) senkron/eager değil, container hazır olduktan sonra **async** ister.
+
+> `dynamic` tek başına async sınırdır. `ssr: true` olsa bile statik import kullanmayın; eager shared yine açılır. `ssr: false` ek olarak host'u remote sağlığına kilitlemez.
+
+#### `ssr: true` ne zaman?
+
+Federated içerik **ilk boyada / SEO'da** şartsa:
+
+- Marketing, ürün listesi, blog — Google'ın HTML'de görmesi gereken şey
+- Above-the-fold — loading spinner kabul edilemez
+- Remote'un ayakta olduğu garanti (aynı cluster, timeout, health check)
+- `_document` + `ssr/remoteEntry` oturmuş, hydration test edilmiş
+
+Checkout / dashboard widget'ında SEO yok; izolasyon öncelikli → `ssr: false`.
+
+| | `ssr: false` | `ssr: true` |
+|---|---|---|
+| HTML'de remote | Yok (önce loading) | Var |
+| Remote down | Host ayakta | Host SSR patlayabilir |
+| Eager shared | Önlenir (`dynamic` ile) | `dynamic` olduğu sürece yine async |
+| İhtiyaç | İzolasyon | SEO / ilk boya |
 
 ---
 
@@ -994,6 +1060,11 @@ const ProfileCard = dynamic(
   { ssr: false }
 );
 
+// Bu uygulamada ssr: false kasıtlı:
+// 1) Remote down olsa host 500 olmasın (izolasyon)
+// 2) Shared paketler eager değil async istensin
+// SEO / ilk boya şartsa dynamic + ssr: true (statik import değil)
+
 export default function Dashboard() {
   return (
     <div>
@@ -1027,6 +1098,48 @@ declare module 'profile/ProfileCard' {
 ---
 
 ## ❌ Error Handling
+
+Bu projede iki katman var; birbirinin yerine geçmez:
+
+| Katman | Ne yakalar? | Bu projede |
+|--------|-------------|------------|
+| `_error.tsx` | Sayfa / SSR / `getServerSideProps` patladı | Yok (Next.js default yeter; optional) |
+| Error Boundary | Client'ta child (federated remote) patladı | `CheckoutErrorBoundary`, `DashboardErrorBoundary` |
+
+Federated remote `ssr: false` olduğu için hata sayfa render'ından **sonra**, async import'ta çıkar. `_error.tsx` bunu görmez. Remote down senaryosu için Error Boundary şart.
+
+App Router'daki `error.tsx` bir Error Boundary'dir. Pages Router `_error.tsx` değildir; dosya kuralı olmadığı için class component yazılır.
+
+### Bu uygulamada neden Error Boundary?
+
+`apps/shell/pages/checkout/step1.tsx` (ve step2 / confirmation) remote'u `dynamic` + `ssr: false` ile yükler. Checkout-app kapalıysa:
+
+1. Shell sayfası başarıyla render olur (loading UI)
+2. Tarayıcı `import("checkout/pages/CheckoutStep1Page")` dener
+3. Promise reject olur — Next.js sayfayı zaten 200 basmıştır
+4. `CheckoutErrorBoundary` kullanıcıya "Checkout yüklenemedi" + port 3001 uyarısı gösterir; host çökmez
+
+Dashboard'daki checkout widget'ları `compact` variant ile sarılır; tek remote fail **tüm dashboard'u** (Zustand, BFF) düşürmez.
+
+**`withRemoteLoadError` neden var?** Error Boundary Promise reject'i yakalamaz; sadece **render** throw'unu yakalar. `next/dynamic` import fail'i boundary'ye düşmez. Helper, reject'i render sırasında `throw` eden bir component'e çevirir.
+
+```typescript
+// apps/shell/pages/checkout/step1.tsx (özet)
+const CheckoutStep1Page = dynamic(
+  withRemoteLoadError(() => import("checkout/pages/CheckoutStep1Page")),
+  { ssr: false, loading: () => <div>Checkout yükleniyor...</div> }
+);
+
+export default function Page() {
+  return (
+    <CheckoutErrorBoundary>
+      <CheckoutStep1Page />
+    </CheckoutErrorBoundary>
+  );
+}
+```
+
+Kaynak: `apps/shell/components/CheckoutErrorBoundary.tsx`
 
 ### Error Boundary Pattern
 
@@ -1090,6 +1203,9 @@ export default function MyApp({ Component, pageProps }: AppProps) {
 - Class component olmalı
 - `getDerivedStateFromError` ve `componentDidCatch` method'ları
 - Functional component'te kullanılamaz
+- Federated remote + `ssr: false` için `_error.tsx` yerine **bu** kullanılır
+
+> `_app.tsx`'e tek global boundary koymak dashboard örneğini de düşürür. Remote'u **kendi** boundary'si ile sarmak (checkout sayfaları / widget'lar) blast radius'u küçük tutar.
 
 ---
 
@@ -1352,7 +1468,7 @@ export default function Page() {
 | **Layouts** | Manual pattern | Built-in |
 | **Data fetching** | getStaticProps, getServerSideProps | Server Components |
 | **Loading UI** | Manual | Built-in loading.tsx |
-| **Error UI** | _error.tsx | error.tsx |
+| **Error UI** | `_error.tsx` (sayfa/SSR) + Error Boundary (client/remote) | `error.tsx` (Error Boundary) |
 | **Streaming** | ❌ | ✅ |
 | **Suspense** | Partial | Full |
 | **Server Components** | ❌ | ✅ |
@@ -1388,7 +1504,9 @@ export default function Page() {
 | `getStaticProps` | Build time data fetch (SSG) |
 | `getServerSideProps` | Request time data fetch (SSR) |
 | `getInitialProps` | Legacy (SSR + CSR) |
-| `dynamic()` | Lazy loading, ssr: false |
+| `dynamic()` | Lazy loading; MF'de `ssr: false` = izolasyon + async shared |
+| `_error.tsx` | Sayfa / SSR hatası (remote down'u kapsamaz) |
+| Error Boundary | Client / federated remote hataları |
 | `Link` | Client-side navigation |
 | `useRouter` | Route info, navigation |
 | `Image` | Optimized images |

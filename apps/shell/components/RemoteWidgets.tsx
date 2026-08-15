@@ -8,13 +8,19 @@
 // MODÜL 6 Eklentisi: METHOD 1 örneği olarak CheckoutStep1 de gösterilmiştir.
 
 import dynamic from "next/dynamic";
+import CheckoutErrorBoundary, {
+  withRemoteLoadError,
+} from "@/components/CheckoutErrorBoundary";
 
-const CheckoutWidget = dynamic(() => import("checkout/CheckoutWidget"), {
-  ssr: false,
-  loading: () => (
-    <p className="text-muted text-sm">checkout-app widget'ı yükleniyor...</p>
-  ),
-});
+const CheckoutWidget = dynamic(
+  withRemoteLoadError(() => import("checkout/CheckoutWidget")),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="text-muted text-sm">checkout-app widget'ı yükleniyor...</p>
+    ),
+  }
+);
 
 const ProfileWidget = dynamic(() => import("profile/ProfileWidget"), {
   ssr: false,
@@ -24,12 +30,15 @@ const ProfileWidget = dynamic(() => import("profile/ProfileWidget"), {
 });
 
 // MODÜL 6 · METHOD 1 Örneği: Individual component import
-const CheckoutStep1 = dynamic(() => import("checkout/CheckoutStep1"), {
-  ssr: false,
-  loading: () => (
-    <p className="text-muted text-sm">checkout step yükleniyor...</p>
-  ),
-});
+const CheckoutStep1 = dynamic(
+  withRemoteLoadError(() => import("checkout/CheckoutStep1")),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="text-muted text-sm">checkout step yükleniyor...</p>
+    ),
+  }
+);
 
 export default function RemoteWidgets() {
   return (
@@ -45,7 +54,9 @@ export default function RemoteWidgets() {
               METHOD 1
             </span>
           </div>
-          <CheckoutWidget itemCount={3} />
+          <CheckoutErrorBoundary compact>
+            <CheckoutWidget itemCount={3} />
+          </CheckoutErrorBoundary>
         </div>
         <div className="rounded-xl bg-card2 p-5">
           <div className="flex items-center justify-between mb-2">
@@ -75,13 +86,15 @@ export default function RemoteWidgets() {
           doğrudan import edilip kullanılıyor. Shell istediği gibi render edebilir.
         </p>
         <div className="bg-slate-900 rounded-lg p-4">
-          <CheckoutStep1 
-            initialItems={["Macbook Pro", "AirPods"]}
-            onNext={(data) => {
-              console.log("Method 1: Step completed", data);
-              alert(`Sepet: ${data.items.length} ürün, Toplam: ₺${data.total}`);
-            }}
-          />
+          <CheckoutErrorBoundary compact>
+            <CheckoutStep1
+              initialItems={["Macbook Pro", "AirPods"]}
+              onNext={(data) => {
+                console.log("Method 1: Step completed", data);
+                alert(`Sepet: ${data.items.length} ürün, Toplam: ₺${data.total}`);
+              }}
+            />
+          </CheckoutErrorBoundary>
         </div>
       </div>
     </div>
