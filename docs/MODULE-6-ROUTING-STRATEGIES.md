@@ -100,9 +100,9 @@ const CheckoutStep1 = dynamic(() => import('checkout/CheckoutStep1'), {
 export default function CheckoutStep1Page() {
   const router = useRouter();
   
-  const handleNext = (data) => {
+  const handleNext = () => {
     // Shell kontrolünde routing
-    sessionStorage.setItem('checkout', JSON.stringify(data));
+    // Data Zustand store'da tutulur
     router.push('/checkout/step2');
   };
   
@@ -116,9 +116,10 @@ const CheckoutStep2 = dynamic(() => import('checkout/CheckoutStep2'), {
 
 export default function CheckoutStep2Page() {
   const router = useRouter();
-  const data = JSON.parse(sessionStorage.getItem('checkout'));
-  
-  const handleNext = (paymentData) => {
+  const items = useCheckoutStore((state) => state.items);
+  const total = useCheckoutStore(selectTotal);
+
+  const handleNext = () => {
     router.push('/checkout/confirmation');
   };
   
@@ -466,8 +467,9 @@ interface CheckoutFlowProps {
 
 **METHOD 1: Shell-managed**
 ```typescript
-// Shell yönetir, localStorage/sessionStorage kullan
-const [checkoutData, setCheckoutData] = useLocalStorage('checkout');
+// Zustand store kullan (centralized state management)
+const items = useCheckoutStore((state) => state.items);
+const setPaymentInfo = useCheckoutStore((state) => state.setPaymentInfo);
 
 // Her step'te update et
 <CheckoutStep1 

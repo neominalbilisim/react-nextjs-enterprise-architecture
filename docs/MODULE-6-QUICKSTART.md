@@ -28,96 +28,98 @@ Sayfayı yenileyin.
 ### Adım 3: Sayfaları Gezin
 
 1. **Dashboard**: http://localhost:3000/dashboard
-   - Method 1 widget örnekleri
-   - Method 2'ye geçiş linkleri
+   - Widget örnekleri
+   - Checkout linkine geçiş
 
-2. **Method 2 Checkout**: http://localhost:3000/checkout
-   - CheckoutFlow kullanımı
-   - Remote kendi routing'ini yönetir
-   - URL değişmez
-
-3. **Method 1 Checkout**: http://localhost:3000/checkout-method1
-   - Individual component kullanımı
-   - Shell routing'i yönetir
-   - Progress indicator
+2. **Checkout Flow**: http://localhost:3000/checkout/step1
+   - Shared Routes Architecture (Production-ready)
+   - Stepli checkout akışı (Sepet → Ödeme → Onay)
+   - React Hook Form + Zod validation
+   - Zustand state management
+   - Her adım ayrı URL
 
 ---
 
-## 📖 Method 1 vs Method 2
+## 📖 Shared Routes Architecture
 
-### Method 1: Component Expose ✅
+### Mimari: Component + Page Expose ⭐
 
-**Ne zaman:** Widget'lar, liste sayfaları, SEO önemli
+**Ne zaman:** Production-ready multi-page flows, SEO önemli
 
 **Avantajlar:**
-- URL kontrol
-- Browser history
-- SEO friendly
+- ✅ URL kontrol (her adım ayrı URL)
+- ✅ Browser history çalışır
+- ✅ SEO friendly
+- ✅ Standalone testing
+- ✅ Zustand state management
+- ✅ React Hook Form + Zod validation
+- ✅ DRY principle
 
 **Örnek:**
 ```typescript
-// Remote expose
-exposes: {
-  "./CheckoutStep1": "./components/CheckoutStep1.tsx"
+// Remote: pages/checkout/step1.tsx
+export default function CheckoutStep1Page() {
+  const router = useRouter();
+  const items = useCheckoutStore((state) => state.items);
+  
+  return <CheckoutStep1 onNext={() => router.push("/checkout/step2")} />;
 }
 
-// Host kullanım
-import CheckoutStep1 from "checkout/CheckoutStep1";
-<CheckoutStep1 onNext={handleNext} />
-```
-
-### Method 2: Flow Expose 🔄
-
-**Ne zaman:** Multi-step wizard'lar, kompleks flow'lar
-
-**Avantajlar:**
-- Team autonomy
-- Tek expose
-- Internal routing
-
-**Örnek:**
-```typescript
-// Remote expose
+// Remote: next.config.js
 exposes: {
-  "./CheckoutFlow": "./components/CheckoutFlow.tsx"
+  "./pages/CheckoutStep1Page": "./pages/checkout/step1.tsx"
 }
 
-// Host kullanım
-import CheckoutFlow from "checkout/CheckoutFlow";
-<CheckoutFlow onComplete={handleComplete} />
+// Host: pages/checkout/step1.tsx
+const CheckoutStep1Page = dynamic(
+  () => import("checkout/pages/CheckoutStep1Page"),
+  { ssr: false }
+);
+export default CheckoutStep1Page;
 ```
 
 ---
 
 ## 🎯 Hızlı Test Senaryoları
 
-### Senaryo 1: Dashboard Widget (Method 1)
+### Senaryo 1: Dashboard Widget
 
 1. `/dashboard` sayfasına gidin
 2. "REMOTE · CHECKOUT-APP" widget'ını bulun
 3. "Ürün Ekle" butonuna tıklayın
 4. Sayacın arttığını görün
 
-**Gözlem:** Basit widget, state shell'e taşınmıyor.
+**Gözlem:** Basit widget örneği, Zustand store kullanıyor.
 
-### Senaryo 2: Method 2 Flow
+### Senaryo 2: Checkout Flow (Shared Routes)
 
-1. `/checkout` sayfasına gidin
-2. Sepete ürün ekleyin/çıkarın
-3. "Ödemeye Geç" butonuna tıklayın
-4. Kart bilgilerini doldurun (örnek: 1234 5678 9012 3456)
-5. "Ödemeyi Tamamla" butonuna tıklayın
-6. Onay sayfasını görün
+1. `/checkout/step1` sayfasına gidin
+2. Sepete ürün ekleyin/çıkarın (Zustand store'da tutuluyor)
+3. "Ödemeye Geç" butonuna tıklayın → URL: `/checkout/step2`
+4. Kart bilgilerini doldurun (React Hook Form + Zod validation)
+   - Random data için "🎲 Random Doldur" butonuna tıklayın
+5. "Ödemeyi Tamamla" butonuna tıklayın → URL: `/checkout/confirmation`
+6. Onay sayfasını görün (tüm bilgiler Zustand'dan geliyor)
+7. Browser back butonuna basın → geri gider
 
-**Gözlem:** URL değişmedi, ama flow içinde gezindik. Browser back butonu çalışmıyor.
+**Gözlem:** 
+- Her adım ayrı URL
+- Browser history çalışıyor
+- Form validation real-time
+- State Zustand'da centralized
 
-### Senaryo 3: Method 1 Individual Components
+### Senaryo 3: Standalone Testing
 
-1. `/checkout-method1` sayfasına gidin
-2. Aynı flow'u tekrarlayın
-3. Browser back butonuna basın
+1. Terminal'de sadece checkout-app'i çalıştırın:
+   ```bash
+   npm run dev:checkout
+   ```
 
-**Gözlem:** Shell routing kontrolünde, browser history çalışıyor (shallow routing eklerseniz).
+2. `http://localhost:3001/checkout/step1` adresine gidin
+
+3. Aynı flow'u test edin
+
+**Gözlem:** Checkout-app bağımsız çalışıyor, aynı davranış!
 
 ---
 

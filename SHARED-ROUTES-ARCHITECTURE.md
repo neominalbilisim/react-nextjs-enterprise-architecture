@@ -33,8 +33,10 @@ apps/checkout-app/
 │   └── index.tsx
 ├── components/
 │   ├── CheckoutStep1.tsx      ← UI component
-│   ├── CheckoutStep2.tsx      ← UI component
+│   ├── CheckoutStep2.tsx      ← UI component (React Hook Form + Zod)
 │   └── CheckoutConfirmation.tsx ← UI component
+├── store/
+│   └── useCheckoutStore.ts    ← Zustand store
 └── next.config.js             ← Pages expose edilir
 ```
 
@@ -63,19 +65,28 @@ apps/shell/
 
 ```typescript
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 import CheckoutStep1 from "../../components/CheckoutStep1";
+import { useCheckoutStore } from "../../store/useCheckoutStore";
 
 export default function CheckoutStep1Page() {
   const router = useRouter();
+  const items = useCheckoutStore((state) => state.items);
 
-  const handleNext = (data) => {
-    sessionStorage.setItem("checkout_data", JSON.stringify(data));
+  const handleNext = () => {
     router.push("/checkout/step2");  // ← Kendi routing'i
   };
 
+  // Eğer sepet boşsa ilk sayfaya dön (opsiyonel)
+  useEffect(() => {
+    if (items.length === 0) {
+      // İlk kez geliyorsa, default items'ı ekle
+      // veya başka bir sayfaya yönlendir
+    }
+  }, [items]);
+
   return (
     <div>
-      <h1>Checkout - Step 1</h1>
       <CheckoutStep1 onNext={handleNext} />
     </div>
   );
@@ -84,7 +95,8 @@ export default function CheckoutStep1Page() {
 
 **Özellikler:**
 - ✅ Next.js routing kullanır (`useRouter`)
-- ✅ sessionStorage ile state management
+- ✅ **Zustand store** ile centralized state management
+- ✅ React Hook Form + Zod validation
 - ✅ Standalone çalışabilir (http://localhost:3001/checkout/step1)
 
 ### 2️⃣ Checkout-App: Expose Configuration
@@ -307,10 +319,18 @@ if (step === "step1") {
 
 **Checkout-App:**
 ```typescript
-// Checkout-app has full routing logic
+// Checkout-app has full routing logic + state management
+import { useCheckoutStore } from "../../store/useCheckoutStore";
+
 export default function CheckoutStep1Page() {
   const router = useRouter();
-  return <CheckoutStep1 onNext={() => router.push("/checkout/step2")} />;
+  const items = useCheckoutStore((state) => state.items);
+  
+  return (
+    <CheckoutStep1 
+      onNext={() => router.push("/checkout/step2")} 
+    />
+  );
 }
 ```
 
@@ -318,16 +338,20 @@ export default function CheckoutStep1Page() {
 ```typescript
 // Shell just imports the page
 const CheckoutStep1Page = dynamic(
-  () => import("checkout/pages/CheckoutStep1Page")
+  () => import("checkout/pages/CheckoutStep1Page"),
+  { ssr: false }
 );
 export default CheckoutStep1Page;
 ```
 
 **Benefits:**
 - ✅ Routing logic in checkout-app
+- ✅ Zustand store for state management
+- ✅ React Hook Form + Zod validation
 - ✅ Can test standalone
 - ✅ Shell automatically gets same behavior
 - ✅ DRY principle
+- ✅ Type-safe throughout
 
 ---
 
@@ -343,38 +367,165 @@ shell:        /checkout/step1  ← Same!
 
 ### 2. State Management
 
-Use `sessionStorage` for cross-route state:
-```typescript
-// Save in step1
-sessionStorage.setItem("checkout_data", JSON.stringify(data));
+**Use Zustand Store** for centralized state management:
 
-// Load in step2
-const data = JSON.parse(sessionStorage.getItem("checkout_data"));
+```typescript
+// apps/checkout-app/store/useCheckoutStore.ts
+import { create } from "zustand";
+
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface CheckoutStore {
+  // State
+  items: CartItem[];
+  cardNumber: string;
+  cardName: string;
+  cvv: string;
+  expiry: string;
+  
+  // Actions
+  addItem: (name: string, price?: number) => void;
+  removeItem: (id: string) => void;
+  setPaymentInfo: (data: PaymentData) => void;
+  reset: () => void;
+}
+
+export const useCheckoutStore = create<CheckoutStore>((set) => ({
+  items: [],
+  cardNumber: "",
+  cardName: "",
+  cvv: "",
+  expiry: "",
+  
+  addItem: (name, price = 500) => {
+    // Implementation...
+  },
+  
+  setPaymentInfo: (data) => {
+    set({
+      cardNumber: data.cardNumber,
+      cardName: data.cardName,
+      cvv: data.cvv,
+      expiry: data.expiry,
+    });
+  },
+  
+  reset: () => {
+    set({
+      items: [],
+      cardNumber: "",
+      cardName: "",
+      cvv: "",
+      expiry: "",
+    });
+  },
+}));
+
+// Selectors for computed values
+export const selectTotal = (state: CheckoutStore) =>
+  state.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 ```
 
-### 3. Error Handling
+**Usage in components:**
+```typescript
+// Any component can access the store
+const items = useCheckoutStore((state) => state.items);
+const addItem = useCheckoutStore((state) => state.addItem);
+const total = useCheckoutStore(selectTotal);
+```
 
-Handle missing data gracefully:
+**Avantajları:**
+- ✅ Centralized state (tüm pages erişebilir)
+- ✅ No props drilling
+- ✅ Optimized re-renders (selector pattern)
+- ✅ Type-safe
+- ✅ Dev tools support
+
+### 3. Form Validation
+
+**Use React Hook Form + Zod** for type-safe validation:
+
+```typescript
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+// Zod schema
+const paymentSchema = z.object({
+  cardNumber: z
+    .string()
+    .min(19, "Kart numarası 16 haneli olmalıdır")
+    .regex(/^\d{4}\s\d{4}\s\d{4}\s\d{4}$/, "Geçerli bir kart numarası giriniz"),
+  cardName: z
+    .string()
+    .min(3, "İsim en az 3 karakter olmalıdır")
+    .regex(/^[A-ZÇĞİÖŞÜ\s]+$/, "Sadece büyük harfler kullanınız"),
+  cvv: z
+    .string()
+    .length(3, "CVV 3 haneli olmalıdır")
+    .regex(/^\d{3}$/, "Sadece rakam giriniz"),
+  expiry: z
+    .string()
+    .regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "MM/YY formatında giriniz"),
+});
+
+type PaymentFormData = z.infer<typeof paymentSchema>;
+
+// Component
+export default function CheckoutStep2() {
+  const setPaymentInfo = useCheckoutStore((state) => state.setPaymentInfo);
+  
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isValid },
+  } = useForm<PaymentFormData>({
+    resolver: zodResolver(paymentSchema),
+    mode: "onChange",
+  });
+
+  const onSubmit = (data: PaymentFormData) => {
+    setPaymentInfo(data);  // Zustand'a kaydet
+    router.push("/checkout/confirmation");
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register("cardNumber")} />
+      {errors.cardNumber && <p>{errors.cardNumber.message}</p>}
+      
+      <button type="submit" disabled={!isValid}>
+        Devam Et
+      </button>
+    </form>
+  );
+}
+```
+
+### 4. Error Handling
+
+Handle missing data gracefully using Zustand:
 ```typescript
 useEffect(() => {
-  const data = sessionStorage.getItem("checkout_data");
-  if (!data) {
+  const items = useCheckoutStore.getState().items;
+  if (items.length === 0) {
     router.push("/checkout/step1"); // Back to start
   }
 }, []);
 ```
 
-### 4. Type Safety
+### 5. Type Safety
 
-Define types for shared data:
+Zustand store is already type-safe:
 ```typescript
-// types/checkout.ts
-export interface CheckoutData {
-  items: string[];
-  total: number;
-  cardNumber?: string;
-  name?: string;
-}
+// TypeScript infers all types automatically
+const items = useCheckoutStore((state) => state.items); // CartItem[]
+const total = useCheckoutStore(selectTotal); // number
 ```
 
 ---
@@ -466,15 +617,28 @@ export interface CheckoutData {
 
 ## 🎓 Summary
 
-**Problem:** Shell ve checkout-app routing logic'i ayrıydı.
+**Problem:** Shell ve checkout-app routing logic'i ayrıydı, state management tutarlı değildi.
 
-**Solution:** Checkout-app route'ları tanımlar, shell aynı route'ları kullanır.
+**Solution:** 
+1. Checkout-app route'ları tanımlar, shell aynı route'ları kullanır
+2. Zustand store ile centralized state management
+3. React Hook Form + Zod ile type-safe validation
 
 **Result:**
 - ✅ Single source of truth (checkout-app)
 - ✅ DRY principle
 - ✅ Standalone testing
 - ✅ Consistency
+- ✅ Centralized state (Zustand)
+- ✅ Type-safe validation (Zod)
+- ✅ Performant forms (React Hook Form)
+
+**Tech Stack:**
+- 🎯 Module Federation (runtime code sharing)
+- 🐻 Zustand (state management)
+- 📋 React Hook Form (form handling)
+- ✅ Zod (schema validation)
+- 🎨 TypeScript (type safety)
 
 **Recommendation:** Bu yapı **production'da best practice**'tir!
 
